@@ -878,7 +878,12 @@ class FileSearchApp:
             export_data = []
             with self.lock:
                 for result in self.search_results:
-                    export_data.append(self.get_filtered_row(result))
+                    row_data = self.get_filtered_row(result)
+                    cleaned_row = {
+                        k: None if pd.isna(v) else v
+                        for k, v in row_data.items()
+                        }
+                    export_data.append(cleaned_row)
             
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(export_data, f, ensure_ascii=False, indent=2)
