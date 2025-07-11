@@ -1,4 +1,4 @@
-# Control+F - Busca Avançada em Arquivos Excel/CSV
+# Control+F Busca Avançada em Arquivos Excel/CSV
 
 **Control+F** é uma aplicação desktop em Python para busca avançada de termos em arquivos Excel (`.xlsx`, `.xls`) e CSV, com interface gráfica moderna baseada em [ttkbootstrap](https://github.com/israel-dryer/ttkbootstrap). Permite localizar valores, selecionar colunas para exportação e gerar relatórios em diversos formatos.
 
@@ -12,8 +12,7 @@
 - Suporte a arquivos grandes e diferentes delimitadores em CSV.
 
 ## Captura de tela
-
-*(Adicione aqui uma imagem da interface após rodar o programa!)*
+<img width="784" height="608" alt="image" src="https://github.com/user-attachments/assets/e5a8165d-0096-4986-8b79-5974dc737ed9" />
 
 ## Instalação
 
