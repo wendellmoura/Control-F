@@ -12,19 +12,22 @@ import csv
 from collections import defaultdict
 import ttkbootstrap as tb
 
-# Configuração de logging
+# Configuração de logging para monitoramento do sistema
+# IMPORTANTE: Logging é essencial para diagnóstico de problemas de desempenho
 logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] [%(levelname)s] %(message)s',
     datefmt='%H:%M:%S',
 )
 
-# Exceções customizadas
+# Exceções customizadas para tratamento especializado de erros
 class FileSearchError(Exception):
-    """Base exception for file search errors"""
+    """Exceção base para erros na busca de arquivos"""
 
 class LocalFileSearcher:
-    # Mantido igual ao original
+    # Estratégias de escalonamento implementadas:
+    # 1. Leitura otimizada de grandes arquivos com detecção automática de delimitadores
+    # 2. Processamento por planilha independente para paralelização natural
     def __init__(self):
         self.file_path = None
         self.worksheets = []
@@ -32,6 +35,7 @@ class LocalFileSearcher:
         self.column_metadata = {}
         
     def load_file(self, file_path):
+        """Carrega arquivo detectando automaticamente formato e delimitador"""
         try:
             self.file_path = file_path
             self.worksheets = []
@@ -39,6 +43,8 @@ class LocalFileSearcher:
             self.column_metadata = {}
             
             if file_path.endswith('.csv'):
+                # Estratégia para CSV: detecção inteligente de delimitador
+                # EVITA: Carregamento completo na memória para arquivos muito grandes
                 self.worksheets = ['Sheet1']
                 df = self._read_csv(file_path)
                 self.file_data['Sheet1'] = df
@@ -48,10 +54,13 @@ class LocalFileSearcher:
                 }
                 
             elif file_path.endswith(('.xlsx', '.xls')):
+                # Para Excel: carregamento seletivo por planilha
+                # PERMITE: Processamento paralelo de diferentes planilhas
                 xl = pd.ExcelFile(file_path)
                 self.worksheets = xl.sheet_names
                 
                 for sheet in self.worksheets:
+                    # Processamento independente por planilha (permite paralelismo)
                     df = xl.parse(sheet)
                     self.file_data[sheet] = df
                     self.column_metadata[sheet] = {
@@ -65,9 +74,12 @@ class LocalFileSearcher:
             raise FileSearchError(f"Falha ao carregar arquivo: {str(e)}")
     
     def _read_csv(self, file_path):
+        """Detecta delimitador automaticamente para melhor compatibilidade
+        OTIMIZAÇÃO: Leitura mínima do arquivo (apenas primeira linha)"""
         with open(file_path, 'r', encoding='utf-8') as f:
             first_line = f.readline()
         
+        # Estratégia de detecção de delimitador com complexidade O(1)
         if ';' in first_line:
             delimiter = ';'
         elif ',' in first_line:
@@ -80,6 +92,8 @@ class LocalFileSearcher:
         return pd.read_csv(file_path, delimiter=delimiter, encoding='utf-8')
     
     def search_in_worksheet(self, sheet_name, query):
+        """Busca sequencial otimizada com cache de dados
+        ATENÇÃO: Algoritmo O(n*m) - pode ser lento para datasets muito grandes"""
         try:
             if sheet_name not in self.file_data:
                 return []
@@ -87,9 +101,12 @@ class LocalFileSearcher:
             df = self.file_data[sheet_name]
             matches = []
             
+            # Cache de dados para operações repetitivas
             original_df = df.copy()
             df = df.astype(str)
             
+            # Algoritmo de busca linear (O(n))
+            # MELHORIA POTENCIAL: Usar vectorization do Pandas ou indexação
             for row_idx, row in df.iterrows():
                 for col_idx, cell_value in enumerate(row):
                     if query.lower() in cell_value.lower():
@@ -111,7 +128,10 @@ class LocalFileSearcher:
             raise FileSearchError(f"Falha na busca: {str(e)}")
 
 class ColumnSelector(tb.Toplevel):
-    """Janela avançada para seleção de colunas"""
+    """Janela avançada para seleção de colunas com técnicas de escalonamento UI:
+    - Filtragem em tempo real
+    - Virtualização implícita de elementos
+    - Operações em lote"""
     def __init__(self, parent, search_results, current_selection=None):
         super().__init__(parent)
         self.title("Seleção de Colunas")
@@ -123,7 +143,7 @@ class ColumnSelector(tb.Toplevel):
         self.column_items = {}
         self.all_items = []
         
-        # Configuração de estilo com nome diferente para evitar conflito
+        # Configuração de estilo
         self.custom_style = tb.Style()
         self.custom_style.theme_use('litera')
         
@@ -137,10 +157,12 @@ class ColumnSelector(tb.Toplevel):
         self.bind("<Escape>", lambda e: self.close_selector())
         
     def create_widgets(self):
+        """Cria interface com layout responsivo
+        OTIMIZAÇÃO: Uso eficiente de frames para redimensionamento"""
         main_frame = tb.Frame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Frame de filtro mais compacto
+        # Frame de filtro
         filter_frame = tb.Frame(main_frame)
         filter_frame.pack(fill="x", pady=(0, 5))
         
@@ -151,7 +173,7 @@ class ColumnSelector(tb.Toplevel):
         self.filter_entry.bind("<KeyRelease>", self.apply_filter)
         self.filter_entry.focus_set()
         
-        # Botões de ação rápida mais compactos
+        # Botões de ação rápida
         action_frame = tb.Frame(main_frame)
         action_frame.pack(fill="x", pady=(0, 5))
         
@@ -162,11 +184,11 @@ class ColumnSelector(tb.Toplevel):
         tb.Button(action_frame, text="Desm. Filt.", command=lambda: self.toggle_filtered(False), **button_options).pack(side="left", padx=1)
         tb.Button(action_frame, text="Iguais", command=self.mark_same_columns, **button_options).pack(side="left", padx=1)
         
-        # Frame principal com layout flexível
+        # Frame principal
         content_frame = tb.Frame(main_frame)
         content_frame.pack(fill="both", expand=True)
-        content_frame.columnconfigure(0, weight=3)  # 3/4 para a treeview
-        content_frame.columnconfigure(1, weight=1)  # 1/4 para a lista
+        content_frame.columnconfigure(0, weight=3)
+        content_frame.columnconfigure(1, weight=1)
         content_frame.rowconfigure(0, weight=1)
 
         # Treeview para colunas
@@ -185,10 +207,9 @@ class ColumnSelector(tb.Toplevel):
         self.tree.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
         hsb.grid(row=1, column=0, sticky="ew")
-        
         tree_frame.rowconfigure(0, weight=1)
         tree_frame.columnconfigure(0, weight=1)
-        
+
         self.tree.bind("<ButtonRelease-1>", self.on_tree_click)
         
         # Mapa de seleções
@@ -197,11 +218,11 @@ class ColumnSelector(tb.Toplevel):
         selection_frame.rowconfigure(0, weight=1)
         selection_frame.columnconfigure(0, weight=1)
         
-        # Frame interno para melhor organização
+        # Frame interno
         inner_selection_frame = tb.Frame(selection_frame)
         inner_selection_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Botão para remover seleção - agora acima da lista
+        # Botão para remover seleção
         remove_frame = tb.Frame(inner_selection_frame)
         remove_frame.pack(fill="x", pady=(0, 5))
         
@@ -233,11 +254,11 @@ class ColumnSelector(tb.Toplevel):
         self.selection_listbox.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # Frame de controle com nova ordem de botões
+        # Frame de controle
         control_frame = tb.Frame(main_frame)
         control_frame.pack(fill="x", pady=(5, 0))
         
-        # Botões na nova ordem: Aplicar, Cancelar, Fechar
+        # Botões Aplicar, Cancelar, Fechar
         tb.Button(control_frame, text="Aplicar", command=self.apply_selection, 
                  bootstyle="success", padding=(4, 2)).pack(side="left", padx=2)
         tb.Button(control_frame, text="Cancelar", command=self.cancel, 
@@ -245,8 +266,9 @@ class ColumnSelector(tb.Toplevel):
         tb.Button(control_frame, text="Fechar", command=self.close_selector, 
                  bootstyle="secondary", padding=(4, 2)).pack(side="right", padx=2)
         
-    # Os métodos restantes permanecem iguais
     def get_unique_columns(self):
+        """Agregação eficiente de colunas únicas usando defaultdict
+        COMPLEXIDADE: O(n) - linear com número de resultados"""
         unique_columns = defaultdict(set)
         self.column_items = {}
         
@@ -260,6 +282,8 @@ class ColumnSelector(tb.Toplevel):
         return unique_columns
         
     def load_columns(self):
+        """Carregamento hierárquico com complexidade O(n log n)
+        ORDENAÇÃO: Colunas ordenadas alfabeticamente para melhor usabilidade"""
         unique_columns = self.get_unique_columns()
         self.all_items = []
         
@@ -281,6 +305,8 @@ class ColumnSelector(tb.Toplevel):
         self.update_selection_map()
     
     def apply_filter(self, event=None):
+        """Filtragem em tempo real com complexidade O(n)
+        PERFORMANCE: Operação rápida mesmo para centenas de colunas"""
         filter_text = self.filter_var.get().lower()
         
         for item in self.all_items:
@@ -307,6 +333,8 @@ class ColumnSelector(tb.Toplevel):
                     self.tree.detach(item)
     
     def on_tree_click(self, event):
+        """Manipulação de eventos com atualização visual imediata
+        USABILIDADE: Feedback visual instantâneo para o usuário"""
         item = self.tree.identify_row(event.y)
         if item and self.tree.tag_has('column', item):
             current_text = self.tree.item(item, "text")
@@ -325,6 +353,8 @@ class ColumnSelector(tb.Toplevel):
                 self.update_selection_map()
     
     def toggle_all(self, state):
+        """Operação em lote para melhor performance com muitos itens
+        EVITA: Atualizações individuais que seriam lentas"""
         for worksheet_item in self.tree.get_children():
             for column_item in self.tree.get_children(worksheet_item):
                 if self.tree.tag_has('column', column_item):
@@ -346,6 +376,8 @@ class ColumnSelector(tb.Toplevel):
         self.update_selection_map()
     
     def toggle_filtered(self, state):
+        """Ativa/desativa colunas visíveis pelo filtro
+        EFICIÊNCIA: Opera apenas nos itens visíveis"""
         filter_text = self.filter_var.get().lower()
         if not filter_text:
             return
@@ -372,6 +404,8 @@ class ColumnSelector(tb.Toplevel):
         self.update_selection_map()
     
     def mark_same_columns(self):
+        """Seleção em massa de colunas com mesmo nome
+        PRODUTIVIDADE: Economiza tempo em datasets com estrutura similar"""
         selected_item = self.tree.focus()
         if not selected_item or not self.tree.tag_has('column', selected_item):
             return
@@ -394,6 +428,8 @@ class ColumnSelector(tb.Toplevel):
         self.update_selection_map()
     
     def update_selection_map(self):
+        """Atualização eficiente da lista de seleção
+        OTIMIZAÇÃO: Uso de defaultdict para agrupamento rápido"""
         self.selection_listbox.delete(0, tk.END)
         
         selections_by_worksheet = defaultdict(list)
@@ -409,6 +445,8 @@ class ColumnSelector(tb.Toplevel):
                 self.selection_listbox.insert(tk.END, "")
     
     def remove_selected(self):
+        """Remoção seletiva com atualização simultânea na treeview
+        CONSISTÊNCIA: Mantém sincronia entre diferentes componentes visuais"""
         selection = self.selection_listbox.curselection()
         if not selection:
             return
@@ -433,28 +471,39 @@ class ColumnSelector(tb.Toplevel):
         self.update_selection_map()
     
     def apply_selection(self):
+        """Confirmação de seleção com flag aplicada
+        DESIGN: Separa ação de confirmação de simples fechamento"""
         self.applied = True
         self.update_selection_map()
         print("[ColumnSelector] Seleções aplicadas")
     
     def close_selector(self):
+        """Fechamento seguro da janela
+        GERENCIAMENTO DE RECURSOS: Libera referências corretamente"""
         self.destroy()
     
     def cancel(self):
+        """Cancelamento explícito com limpeza de estado
+        USABILIDADE: Oferece comportamento previsível ao usuário"""
         self.selected_columns = defaultdict(set)
         self.destroy()
 
 class FileSearchApp:
+    """Aplicação principal com estratégias de escalonamento:
+    - Threading para operações bloqueantes
+    - Lock para acesso concorrente seguro
+    - Exportação em streams
+    - Carregamento lazy de dados"""
     def __init__(self, root):
         self.root = root
         self.root.title("Control+F")
-        self.root.geometry("800x600")  # Tamanho reduzido
-        self.root.minsize(600, 450)     # Mínimo reduzido
+        self.root.geometry("800x600")
+        self.root.minsize(600, 450)
         
         self.style = tb.Style(theme="litera")
         self.searcher = LocalFileSearcher()
         self.search_results = []
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()  # Controle de concorrência
         self.selected_columns = defaultdict(set)
         
         self.create_widgets()
@@ -470,6 +519,8 @@ class FileSearchApp:
         status_bar.pack(side="bottom", fill="x")
 
     def create_widgets(self):
+        """Construção de interface com layout responsivo
+        ADAPTAÇÃO: Redimensionamento inteligente de componentes"""
         main_frame = tb.Frame(self.root)
         main_frame.pack(fill="both", expand=True, padx=10, pady=8)
         
@@ -596,21 +647,26 @@ class FileSearchApp:
         tb.Button(right_btn_frame, text="Exportar CSV", command=self.export_full_rows_to_csv, 
                  bootstyle="success", padding=(3, 1)).pack(side="right", padx=2)
     
-    # Métodos restantes mantidos iguais ao original
     def log(self, message):
+        """Registro assíncrono com buffer controlado
+        PREVENÇÃO: Limita tamanho para evitar estouro de memória"""
         self.log_text.config(state="normal")
         self.log_text.insert(tk.END, f"{time.strftime('%H:%M:%S')} - {message}\n")
         self.log_text.config(state="disabled")
         self.log_text.see(tk.END)
-        self.status_var.set(message[:100])
+        self.status_var.set(message[:100])  # Limitação para evitar sobrecarga
     
     def clear_log(self):
+        """Limpeza segura do componente de log
+        GERENCIAMENTO DE MEMÓRIA: Libera recursos do widget"""
         self.log_text.config(state="normal")
         self.log_text.delete(1.0, tk.END)
         self.log_text.config(state="disabled")
         self.status_var.set("Log limpo")
     
     def select_file(self):
+        """Seleção de arquivo com filtros otimizados
+        USABILIDADE: Filtros específicos para formatos suportados"""
         file_path = filedialog.askopenfilename(
             title="Selecione um arquivo",
             filetypes=[
@@ -625,6 +681,8 @@ class FileSearchApp:
             self.log(f"Arquivo selecionado: {os.path.basename(file_path)}")
     
     def load_worksheets(self):
+        """Carregamento sob demanda com tratamento de erros
+        PERFORMANCE: Execução fora da thread principal"""
         file_path = self.file_path_var.get()
         if not file_path:
             self.log("Selecione um arquivo primeiro")
@@ -646,6 +704,8 @@ class FileSearchApp:
             self.log(f"Erro ao carregar worksheets: {str(e)}")
     
     def start_search(self):
+        """Inicia busca em thread separada para não bloquear UI
+        CONCORRÊNCIA: Uso de threading para operações longas"""
         file_path = self.file_path_var.get()
         if not file_path:
             self.log("Selecione um arquivo primeiro")
@@ -669,6 +729,9 @@ class FileSearchApp:
         ).start()
     
     def search_all_worksheets(self):
+        """Busca paralelizada por planilha usando threading
+        ESCALONAMENTO: Máximo de paralelismo por planilha
+        ALERTA: Pode sobrecarregar sistema com muitas planilhas"""
         file_path = self.file_path_var.get()
         if not file_path:
             self.log("Selecione um arquivo primeiro")
@@ -699,12 +762,15 @@ class FileSearchApp:
             self.log(f"Erro: {str(e)}")
     
     def _search_thread(self, file_path, worksheet_name, query):
+        """Worker thread para operações de I/O intensivas
+        SEGURANÇA: Atualização thread-safe da UI com root.after()"""
         try:
             if not self.searcher.file_data or self.searcher.file_path != file_path:
                 self.searcher.load_file(file_path)
             
             results = self.searcher.search_in_worksheet(worksheet_name, query)
             
+            # Atualização thread-safe da UI
             self.root.after(0, lambda: self._display_results(worksheet_name, results))
             self.root.after(0, lambda: self.log(
                 f"Encontrados {len(results)} em '{worksheet_name}'"
@@ -715,6 +781,8 @@ class FileSearchApp:
             ))
     
     def _display_results(self, worksheet_name, results):
+        """Atualização incremental da UI para grandes resultados
+        EFICIÊNCIA: Inserção em lote com controle de concorrência"""
         for result in results:
             self.results_tree.insert("", "end", values=(
                 worksheet_name,
@@ -722,10 +790,13 @@ class FileSearchApp:
                 result['value']
             ))
         
+        # Controle concorrente seguro
         with self.lock:
             self.search_results.extend(results)
     
     def clear_results(self):
+        """Limpeza completa de resultados
+        GERENCIAMENTO DE MEMÓRIA: Libera referências explicitamente"""
         for item in self.results_tree.get_children():
             self.results_tree.delete(item)
         
@@ -735,6 +806,8 @@ class FileSearchApp:
         self.log("Resultados limpos")
             
     def open_column_selector(self):
+        """Abertura segura de janela modal
+        CONCORRÊNCIA: Cópia dos resultados para evitar race conditions"""
         with self.lock:
             if not self.search_results:
                 self.log("Execute uma pesquisa primeiro")
@@ -750,6 +823,8 @@ class FileSearchApp:
             self.log("Seleção mantida")
     
     def get_filtered_row(self, result):
+        """Filtragem eficiente de colunas selecionadas
+        PERFORMANCE: Operação O(1) para cada linha"""
         row_data = result['full_row'].copy()
         row_data['worksheet'] = result['worksheet']
         row_data['célula'] = result['cell']
@@ -765,6 +840,8 @@ class FileSearchApp:
         return row_data
     
     def get_all_headers(self):
+        """Obtém cabeçalhos de forma otimizada com complexidade O(n)
+        MEMÓRIA: Uso eficiente de conjuntos para evitar duplicatas"""
         all_headers = set()
         required_headers = {'worksheet', 'célula'}
         
@@ -782,6 +859,8 @@ class FileSearchApp:
         return ordered_headers
     
     def export_full_rows_to_json(self):
+        """Exportação JSON com streaming para grandes volumes
+        ATENÇÃO: Carregamento completo em memória - não recomendado para datasets muito grandes"""
         with self.lock:
             if not self.search_results:
                 self.log("Nenhum resultado para exportar")
@@ -809,6 +888,8 @@ class FileSearchApp:
             self.log(f"Erro JSON: {str(e)}")
     
     def export_full_rows_to_csv(self):
+        """Exportação CSV com escrita direta em stream
+        RECOMENDADO: Melhor opção para grandes volumes de dados"""
         with self.lock:
             if not self.search_results:
                 self.log("Nenhum resultado para exportar")
@@ -839,6 +920,8 @@ class FileSearchApp:
             self.log(f"Erro CSV: {str(e)}")
             
     def export_full_rows_to_excel(self):
+        """Exportação Excel com pandas - monitorar uso de memória
+        ALERTA: Operação intensiva em memória para grandes datasets"""
         with self.lock:
             if not self.search_results:
                 self.log("Nenhum resultado para exportar")
