@@ -24,13 +24,13 @@
 2. **Instale as dependências** (recomenda-se uso de ambiente virtual):
 
 ```bash
-pip install pandas ttkbootstrap
+pip install pandas ttkbootstrap openpyxl
 ```
 
 3. Execute o programa:
 
 ```bash
-python seu_arquivo.py
+python ControlF.py
 ```
 
 ## Uso
