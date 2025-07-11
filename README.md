@@ -12,7 +12,7 @@
 - Suporte a arquivos grandes e diferentes delimitadores em CSV.
 
 ## Captura de tela
-<img width="784" height="608" alt="image" src="https://github.com/user-attachments/assets/e5a8165d-0096-4986-8b79-5974dc737ed9" />
+<img width="787" height="607" alt="image" src="https://github.com/user-attachments/assets/38511148-8994-4c49-8480-0bd80f543ba0" />
 
 ## Instalação
 
